@@ -35,7 +35,8 @@ namespace Editor.Views
                 d.Add(vm.NewRsiAction.RegisterHandler(NewRsi));
                 d.Add(vm.OpenRsiDialog.RegisterHandler(OpenRsi));
                 d.Add(vm.SaveRsiDialog.RegisterHandler(SaveRsi));
-                d.Add(vm.ImportDmiDialog.RegisterHandler(ImportDmi));
+                d.Add(vm.ImportDmiFromFileDialog.RegisterHandler(ImportFileDmi));
+                d.Add(vm.ImportDmiFromUrlDialog.RegisterHandler(ImportUrlDmi));
                 d.Add(vm.PreferencesAction.RegisterHandler(OpenPreferences));
                 d.Add(vm.UndoAction.RegisterHandler(Undo));
                 d.Add(vm.RedoAction.RegisterHandler(Redo));
@@ -126,7 +127,7 @@ namespace Editor.Views
             interaction.SetOutput(folder);
         }
 
-        private async Task ImportDmi(InteractionContext<Unit, string> interaction)
+        private async Task ImportFileDmi(InteractionContext<Unit, string> interaction)
         {
             var dialog = new OpenFileDialog
             {
@@ -145,7 +146,21 @@ namespace Editor.Views
 
             interaction.SetOutput(files.Length > 0 ? files[0] : string.Empty);
         }
+        
+        private async Task ImportUrlDmi(InteractionContext<Unit, string?> arg)
+        {
+            var vm = new TextInputWindowViewModel("Import DMI", "From URL");
+            var dialog = new TextInputWindow {DataContext = vm};
 
+            if (!await dialog.ShowDialog<bool>(this))
+            {
+                arg.SetOutput(null);
+                return;
+            }
+
+            arg.SetOutput(vm.SubmittedText);
+        }
+        
         private async Task OpenPreferences(InteractionContext<Unit, Unit> arg)
         {
             if (ViewModel == null)
@@ -275,7 +290,7 @@ namespace Editor.Views
                 switch (Path.GetExtension(rsiOrDmi))
                 {
                     case ".dmi":
-                        await ViewModel.ImportDmi(rsiOrDmi);
+                        await ViewModel.ImportFileDmi(rsiOrDmi);
                         break;
                     default:
                         await ViewModel.OpenRsi(rsiOrDmi);

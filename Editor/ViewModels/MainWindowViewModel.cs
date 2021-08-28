@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Text.Json;
@@ -51,7 +52,9 @@ namespace Editor.ViewModels
 
         public Interaction<Unit, string> SaveRsiDialog { get; } = new();
 
-        public Interaction<Unit, string> ImportDmiDialog { get; } = new();
+        public Interaction<Unit, string> ImportDmiFromFileDialog { get; } = new();
+
+        public Interaction<Unit, string> ImportDmiFromUrlDialog { get; } = new();
 
         public Interaction<Unit, Unit> PreferencesAction { get; } = new();
 
@@ -219,7 +222,7 @@ namespace Editor.ViewModels
             }
         }
 
-        public async Task ImportDmi(string filePath)
+        public async Task ImportFileDmi(string filePath)
         {
             if (!DmiParser.TryGetFileMetadata(filePath, out var metadata, out var parseError))
             {
@@ -252,16 +255,51 @@ namespace Editor.ViewModels
             AddRsi(rsiVm);
             LastOpenedElement = filePath;
         }
-
-        public async Task Import()
+        
+        public async Task ImportURLDmi(string url)
         {
-            var file = await ImportDmiDialog.Handle(Unit.Default);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                await ErrorDialog.Handle(new ErrorWindowViewModel($"Error parsing URL \"{url}\""));
+                return;
+            }
+
+            using var webclient = new WebClient();
+            try
+            {
+                var data = await webclient.DownloadDataTaskAsync(uri);
+            }
+            catch (Exception e)
+            {
+                Logger.Sink.Log(LogEventLevel.Error, "MAIN", null, e.ToString());
+                await ErrorDialog.Handle(new ErrorWindowViewModel($"Error downloading dmi URL:\n{e.Message}"));
+                return;
+            }
+            
+            // TODO: Make common method for these 2.
+        }
+
+        public async Task ImportFile()
+        {
+            var file = await ImportDmiFromFileDialog.Handle(Unit.Default);
             if (string.IsNullOrEmpty(file))
             {
                 return;
             }
 
-            await ImportDmi(file);
+            await ImportFileDmi(file);
+        }
+
+        public async Task ImportUrl()
+        {
+            var url = await ImportDmiFromUrlDialog.Handle(Unit.Default);
+
+            if (string.IsNullOrEmpty(url))
+            {
+                return;
+            }
+
+            await ImportURLDmi(url);
         }
 
         public async Task ReOpenLast()
@@ -274,7 +312,7 @@ namespace Editor.ViewModels
                 }
                 else
                 {
-                    await ImportDmi(LastOpenedElement);
+                    await ImportFileDmi(LastOpenedElement);
                 }
             }
         }
